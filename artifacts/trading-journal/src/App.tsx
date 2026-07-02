@@ -4,14 +4,25 @@ import Dashboard from "@/pages/Dashboard";
 import Journal from "@/pages/Journal";
 import LogTrade from "@/pages/LogTrade";
 import AuthPage from "@/pages/AuthPage";
+import ProfilePage from "@/pages/ProfilePage";
 import { RulesPanel } from "@/components/RulesPanel";
 import { useRules } from "@/hooks/useRules";
 import { useAuth } from "@/hooks/useAuth";
-import { BookOpen, Activity, List, PlusCircle, LogOut } from "lucide-react";
+import { BookOpen, Activity, List, PlusCircle } from "lucide-react";
 
 function Nav({ onLogout }: { onLogout: () => void }) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { setIsPanelOpen } = useRules();
+  const { currentUser } = useAuth();
+
+  const initials = currentUser
+    ? currentUser.username
+        .split(/[\s._-]/)
+        .map((p: string) => p[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "?";
 
   return (
     <header className="border-b border-border bg-card sticky top-0 z-40">
@@ -48,12 +59,18 @@ function Nav({ onLogout }: { onLogout: () => void }) {
           >
             <BookOpen className="w-4 h-4" /> Rules
           </button>
+
+          {/* Profile avatar */}
           <button
-            onClick={onLogout}
-            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-destructive bg-secondary/50 hover:bg-secondary px-3 py-1.5 rounded-md transition-colors border border-border"
-            title="Log out"
+            onClick={() => setLocation("/profile")}
+            title="Profile"
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+              location === "/profile"
+                ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-background"
+                : "bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground"
+            }`}
           >
-            <LogOut className="w-4 h-4" />
+            {initials}
           </button>
         </div>
       </div>
@@ -72,6 +89,9 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
             <Route path="/journal" component={Journal} />
             <Route path="/log" component={LogTrade} />
             <Route path="/log/:id" component={LogTrade} />
+            <Route path="/profile">
+              <ProfilePage />
+            </Route>
             <Route>
               <div className="flex items-center justify-center h-[50vh]">
                 <h2 className="text-2xl text-muted-foreground">404 - Page Not Found</h2>
@@ -86,13 +106,13 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 }
 
 function App() {
-  const { currentUser, logOut } = useAuth();
+  const { currentEmail, logOut } = useAuth();
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
 
-  if (!currentUser) {
+  if (!currentEmail) {
     return <AuthPage onAuth={() => {}} />;
   }
 

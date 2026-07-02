@@ -9,7 +9,7 @@ interface Props {
 export default function AuthPage({ onAuth }: Props) {
   const { signUp, logIn } = useAuth();
   const [tab, setTab] = useState<"login" | "signup">("login");
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -23,10 +23,10 @@ export default function AuthPage({ onAuth }: Props) {
         setError("Passwords do not match.");
         return;
       }
-      const res = signUp(username, password);
+      const res = signUp(email, password);
       if (!res.ok) { setError(res.error ?? "Error"); return; }
     } else {
-      const res = logIn(username, password);
+      const res = logIn(email, password);
       if (!res.ok) { setError(res.error ?? "Error"); return; }
     }
     onAuth();
@@ -35,7 +35,7 @@ export default function AuthPage({ onAuth }: Props) {
   const switchTab = (t: "login" | "signup") => {
     setTab(t);
     setError("");
-    setUsername("");
+    setEmail("");
     setPassword("");
     setConfirm("");
   };
@@ -47,7 +47,6 @@ export default function AuthPage({ onAuth }: Props) {
         {/* ── Left panel: branding + about ── */}
         <div className="lg:w-1/2 flex flex-col justify-center px-10 py-16 lg:py-24 bg-card border-b lg:border-b-0 lg:border-r border-border">
           <div className="max-w-md mx-auto w-full">
-            {/* Logo */}
             <div className="flex items-center gap-3 mb-10">
               <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
                 <Activity className="w-5 h-5 text-primary-foreground" />
@@ -57,7 +56,6 @@ export default function AuthPage({ onAuth }: Props) {
               </span>
             </div>
 
-            {/* About */}
             <h1 className="text-3xl font-bold mb-4 leading-snug">
               Your trading performance,<br />
               <span className="text-primary">tracked automatically.</span>
@@ -140,13 +138,13 @@ export default function AuthPage({ onAuth }: Props) {
             {/* Form */}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5">Username</label>
+                <label className="block text-sm font-medium mb-1.5">Email</label>
                 <input
-                  type="text"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="e.g. john_trades"
-                  autoComplete="username"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
                   required
                   className="w-full bg-secondary border border-border rounded-md px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
                 />
