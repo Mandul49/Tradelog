@@ -51,6 +51,10 @@ export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade |
             <div className="text-muted-foreground">Exit Price</div>
             <div>{trade.exitPrice ? `$${trade.exitPrice}` : "—"}</div>
           </div>
+          <div>
+            <div className="text-muted-foreground">Lot Size</div>
+            <div>{trade.lotSize ?? "—"}</div>
+          </div>
           <div className="col-span-2">
             <div className="text-muted-foreground">P&L</div>
             <div className={`font-semibold ${trade.pnlAmount >= 0 ? "text-success" : "text-destructive"}`}>

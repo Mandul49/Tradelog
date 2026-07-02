@@ -83,6 +83,7 @@ export default function LogTrade() {
   const [asset, setAsset] = useState<string>("Volatility 75 Index");
   const [customAsset, setCustomAsset] = useState("");
   const [direction, setDirection] = useState<Trade["direction"]>("buy");
+  const [lotSize, setLotSize] = useState<string>("1");
   const [originalBalance, setOriginalBalance] = useState<string>("");
   const [currentBalance, setCurrentBalance] = useState<string>("");
   const [entryPrice, setEntryPrice] = useState<string>("");
@@ -96,24 +97,25 @@ export default function LogTrade() {
 
   // ── Auto-calculate current balance ────────────────────────────────────────
   const computeCurrentBalance = useCallback(
-    (origBal: string, entry: string, exit: string, dir: Trade["direction"]) => {
+    (origBal: string, entry: string, exit: string, lot: string, dir: Trade["direction"]) => {
       const o = parseFloat(origBal);
       const en = parseFloat(entry);
       const ex = parseFloat(exit);
-      if (!o || !en || !ex || en === 0) return null;
-      const pct = dir === "buy"
-        ? (ex - en) / en
-        : (en - ex) / en;
-      return (o + pct * o).toFixed(2);
+      const ls = parseFloat(lot);
+      if (!o || !en || !ex || !ls) return null;
+      const pnl = dir === "buy"
+        ? (ex - en) * ls
+        : (en - ex) * ls;
+      return (o + pnl).toFixed(2);
     },
     []
   );
 
   useEffect(() => {
     if (balanceManual) return;
-    const result = computeCurrentBalance(originalBalance, entryPrice, exitPrice, direction);
+    const result = computeCurrentBalance(originalBalance, entryPrice, exitPrice, lotSize, direction);
     if (result !== null) setCurrentBalance(result);
-  }, [originalBalance, entryPrice, exitPrice, direction, balanceManual, computeCurrentBalance]);
+  }, [originalBalance, entryPrice, exitPrice, lotSize, direction, balanceManual, computeCurrentBalance]);
 
   // ── Populate form when editing ────────────────────────────────────────────
   useEffect(() => {
@@ -122,6 +124,7 @@ export default function LogTrade() {
       setAsset(existingTrade.asset);
       setCustomAsset(existingTrade.customAsset || "");
       setDirection(existingTrade.direction);
+      setLotSize(existingTrade.lotSize ? existingTrade.lotSize.toString() : "1");
       setOriginalBalance(existingTrade.originalBalance.toString());
       setCurrentBalance(existingTrade.currentBalance.toString());
       setEntryPrice(existingTrade.entryPrice ? existingTrade.entryPrice.toString() : "");
@@ -146,7 +149,8 @@ export default function LogTrade() {
     !balanceManual &&
     originalBalance !== "" &&
     entryPrice !== "" &&
-    exitPrice !== "";
+    exitPrice !== "" &&
+    lotSize !== "";
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,6 +175,7 @@ export default function LogTrade() {
       asset,
       customAsset: asset === "Custom" ? customAsset : undefined,
       direction,
+      lotSize: parseFloat(lotSize) || 1,
       originalBalance: origNum,
       currentBalance: currNum,
       entryPrice: parseFloat(entryPrice) || 0,
@@ -271,14 +276,14 @@ export default function LogTrade() {
               </div>
             </div>
 
-            {/* Row 2: Entry · Exit · Original Balance */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Row 2: Entry · Exit · Lot Size · Original Balance */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Entry Price ($)</label>
                 <Input
                   type="number"
                   step="any"
-                  placeholder="Spot price at entry"
+                  placeholder="Spot at entry"
                   value={entryPrice}
                   onChange={e => setEntryPrice(e.target.value)}
                   className="bg-input"
@@ -290,11 +295,24 @@ export default function LogTrade() {
                 <Input
                   type="number"
                   step="any"
-                  placeholder="Spot price at exit"
+                  placeholder="Spot at exit"
                   value={exitPrice}
                   onChange={e => setExitPrice(e.target.value)}
                   className="bg-input"
                   data-testid="input-exit-price"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Lot Size</label>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="e.g. 1"
+                  value={lotSize}
+                  onChange={e => { setLotSize(e.target.value); setBalanceManual(false); }}
+                  className="bg-input"
+                  data-testid="input-lot-size"
                 />
               </div>
               <div className="space-y-2">
