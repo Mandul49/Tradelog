@@ -4,11 +4,12 @@ export interface Trade {
   asset: "Vol 50" | "Vol 75" | "Vol 75 1s" | "Custom";
   customAsset?: string;
   direction: "buy" | "sell";
-  stake: number;           // ₦ amount
+  originalBalance: number; // account balance before trade (USD)
+  currentBalance: number;  // account balance after trade (USD)
   entryPrice: number;
   exitPrice: number;
-  pnlAmount: number;
-  pnlPercent: number;
+  pnlAmount: number;       // currentBalance - originalBalance
+  pnlPercent: number;      // (pnlAmount / originalBalance) * 100
   result: "win" | "loss";
   reasoning: string;
   reflection: string;

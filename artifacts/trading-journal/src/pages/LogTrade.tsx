@@ -25,7 +25,8 @@ export default function LogTrade() {
   const [asset, setAsset] = useState<Trade["asset"]>("Vol 75");
   const [customAsset, setCustomAsset] = useState("");
   const [direction, setDirection] = useState<Trade["direction"]>("buy");
-  const [stake, setStake] = useState<string>("");
+  const [originalBalance, setOriginalBalance] = useState<string>("");
+  const [currentBalance, setCurrentBalance] = useState<string>("");
   const [entryPrice, setEntryPrice] = useState<string>("");
   const [exitPrice, setExitPrice] = useState<string>("");
   const [reasoning, setReasoning] = useState("");
@@ -40,7 +41,8 @@ export default function LogTrade() {
       setAsset(existingTrade.asset);
       setCustomAsset(existingTrade.customAsset || "");
       setDirection(existingTrade.direction);
-      setStake(existingTrade.stake.toString());
+      setOriginalBalance(existingTrade.originalBalance.toString());
+      setCurrentBalance(existingTrade.currentBalance.toString());
       setEntryPrice(existingTrade.entryPrice.toString());
       setExitPrice(existingTrade.exitPrice.toString());
       setReasoning(existingTrade.reasoning);
@@ -51,23 +53,12 @@ export default function LogTrade() {
     }
   }, [existingTrade]);
 
-  // Calculations
-  const stakeNum = parseFloat(stake) || 0;
-  const entryNum = parseFloat(entryPrice) || 0;
-  const exitNum = parseFloat(exitPrice) || 0;
-  
-  let pnlAmount = 0;
-  let pnlPercent = 0;
+  const origNum = parseFloat(originalBalance) || 0;
+  const currNum = parseFloat(currentBalance) || 0;
 
-  if (entryNum > 0) {
-    if (direction === "buy") {
-      pnlAmount = ((exitNum - entryNum) / entryNum) * stakeNum;
-      pnlPercent = ((exitNum - entryNum) / entryNum) * 100;
-    } else {
-      pnlAmount = ((entryNum - exitNum) / entryNum) * stakeNum;
-      pnlPercent = ((entryNum - exitNum) / entryNum) * 100;
-    }
-  }
+  const pnlAmount = origNum > 0 && currNum > 0 ? currNum - origNum : 0;
+  const pnlPercent = origNum > 0 && currNum > 0 ? ((currNum - origNum) / origNum) * 100 : 0;
+  const showPreview = originalBalance !== "" && currentBalance !== "";
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -82,8 +73,8 @@ export default function LogTrade() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stake || !entryPrice || !exitPrice) {
-      alert("Stake, Entry, and Exit prices are required.");
+    if (!originalBalance || !currentBalance) {
+      alert("Original Balance and Current Balance are required.");
       return;
     }
 
@@ -93,9 +84,10 @@ export default function LogTrade() {
       asset,
       customAsset: asset === "Custom" ? customAsset : undefined,
       direction,
-      stake: stakeNum,
-      entryPrice: entryNum,
-      exitPrice: exitNum,
+      originalBalance: origNum,
+      currentBalance: currNum,
+      entryPrice: parseFloat(entryPrice) || 0,
+      exitPrice: parseFloat(exitPrice) || 0,
       pnlAmount,
       pnlPercent,
       result: pnlAmount > 0 ? "win" : "loss",
@@ -115,7 +107,7 @@ export default function LogTrade() {
   };
 
   const toggleRule = (rule: string) => {
-    setRulesFollowed(prev => 
+    setRulesFollowed(prev =>
       prev.includes(rule) ? prev.filter(r => r !== rule) : [...prev, rule]
     );
   };
@@ -128,23 +120,23 @@ export default function LogTrade() {
         </CardHeader>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-8">
-            
+
             {/* Top Row: Date, Asset, Direction */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Date & Time</label>
-                <Input 
-                  type="datetime-local" 
-                  value={datetime} 
-                  onChange={e => setDatetime(e.target.value)} 
+                <Input
+                  type="datetime-local"
+                  value={datetime}
+                  onChange={e => setDatetime(e.target.value)}
                   className="bg-input"
                   required
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Asset</label>
-                <select 
-                  value={asset} 
+                <select
+                  value={asset}
                   onChange={e => setAsset(e.target.value as Trade["asset"])}
                   className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-primary outline-none"
                 >
@@ -154,9 +146,9 @@ export default function LogTrade() {
                   <option value="Custom">Custom</option>
                 </select>
                 {asset === "Custom" && (
-                  <Input 
-                    placeholder="Custom asset name" 
-                    value={customAsset} 
+                  <Input
+                    placeholder="Custom asset name"
+                    value={customAsset}
                     onChange={e => setCustomAsset(e.target.value)}
                     className="mt-2 bg-input"
                     required
@@ -168,6 +160,7 @@ export default function LogTrade() {
                 <div className="flex bg-input rounded-md p-1 border border-border">
                   <button
                     type="button"
+                    data-testid="button-buy"
                     className={`flex-1 text-sm py-1.5 rounded transition-colors ${direction === "buy" ? "bg-success text-success-foreground font-semibold" : "text-muted-foreground hover:text-foreground"}`}
                     onClick={() => setDirection("buy")}
                   >
@@ -175,6 +168,7 @@ export default function LogTrade() {
                   </button>
                   <button
                     type="button"
+                    data-testid="button-sell"
                     className={`flex-1 text-sm py-1.5 rounded transition-colors ${direction === "sell" ? "bg-destructive text-destructive-foreground font-semibold" : "text-muted-foreground hover:text-foreground"}`}
                     onClick={() => setDirection("sell")}
                   >
@@ -184,26 +178,68 @@ export default function LogTrade() {
               </div>
             </div>
 
-            {/* Financials Row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+            {/* Balance & Price Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Stake (₦)</label>
-                <Input type="number" step="any" min="0" value={stake} onChange={e => setStake(e.target.value)} className="bg-input" required />
+                <label className="text-sm font-medium">Original Balance ($)</label>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="Account balance before trade"
+                  value={originalBalance}
+                  onChange={e => setOriginalBalance(e.target.value)}
+                  className="bg-input"
+                  data-testid="input-original-balance"
+                  required
+                />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Entry Price</label>
-                <Input type="number" step="any" value={entryPrice} onChange={e => setEntryPrice(e.target.value)} className="bg-input" required />
+                <label className="text-sm font-medium">Current Balance ($)</label>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="Account balance after trade"
+                  value={currentBalance}
+                  onChange={e => setCurrentBalance(e.target.value)}
+                  className="bg-input"
+                  data-testid="input-current-balance"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Entry / Exit / P&L Preview */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Entry Price ($)</label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={entryPrice}
+                  onChange={e => setEntryPrice(e.target.value)}
+                  className="bg-input"
+                  data-testid="input-entry-price"
+                />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Exit Price</label>
-                <Input type="number" step="any" value={exitPrice} onChange={e => setExitPrice(e.target.value)} className="bg-input" required />
+                <label className="text-sm font-medium">Exit Price ($)</label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={exitPrice}
+                  onChange={e => setExitPrice(e.target.value)}
+                  className="bg-input"
+                  data-testid="input-exit-price"
+                />
               </div>
               <div className="space-y-2 md:pt-7">
                 <div className="text-sm text-muted-foreground mb-1">Live P&L Preview</div>
-                <div className={`text-lg font-bold ${(entryPrice && exitPrice && stake) ? (pnlAmount >= 0 ? "text-success" : "text-destructive") : "text-muted-foreground"}`}>
-                  {(entryPrice && exitPrice && stake) ? (
+                <div className={`text-lg font-bold ${showPreview ? (pnlAmount >= 0 ? "text-success" : "text-destructive") : "text-muted-foreground"}`}>
+                  {showPreview ? (
                     <>
-                      {pnlAmount > 0 ? "+" : ""}₦{pnlAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {pnlAmount > 0 ? "+" : ""}${pnlAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       <span className="text-sm font-normal ml-2 opacity-80">
                         ({pnlPercent > 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
                       </span>
@@ -217,11 +253,11 @@ export default function LogTrade() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Reasoning (Why did I take this trade?)</label>
-                <Textarea value={reasoning} onChange={e => setReasoning(e.target.value)} className="bg-input min-h-[80px]" />
+                <Textarea value={reasoning} onChange={e => setReasoning(e.target.value)} className="bg-input min-h-[80px]" data-testid="textarea-reasoning" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Reflection (What would I do differently?)</label>
-                <Textarea value={reflection} onChange={e => setReflection(e.target.value)} className="bg-input min-h-[80px]" />
+                <Textarea value={reflection} onChange={e => setReflection(e.target.value)} className="bg-input min-h-[80px]" data-testid="textarea-reflection" />
               </div>
             </div>
 
@@ -235,13 +271,13 @@ export default function LogTrade() {
                   </Button>
                 )}
               </div>
-              
+
               {ruleLines.length > 0 ? (
                 <div className="space-y-2">
                   {ruleLines.map((rule, idx) => (
                     <label key={idx} className="flex items-start gap-3 cursor-pointer group">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         className="mt-1 w-4 h-4 rounded border-border bg-input text-primary focus:ring-primary focus:ring-offset-background"
                         checked={rulesFollowed.includes(rule)}
                         onChange={() => toggleRule(rule)}
@@ -255,16 +291,16 @@ export default function LogTrade() {
               )}
             </div>
 
-            {/* Extra Row: Tags, Screenshot */}
+            {/* Tags & Screenshot */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Tags (comma-separated)</label>
-                <Input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. breakout, trend, news" className="bg-input" />
+                <Input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. breakout, trend, news" className="bg-input" data-testid="input-tags" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Screenshot</label>
                 <div className="flex items-center gap-4">
-                  <Input type="file" accept="image/*" onChange={handleImageUpload} className="bg-input file:text-foreground file:bg-secondary file:border-0 file:rounded-md file:mr-4 file:px-3 file:py-1 cursor-pointer" />
+                  <Input type="file" accept="image/*" onChange={handleImageUpload} className="bg-input file:text-foreground file:bg-secondary file:border-0 file:rounded-md file:mr-4 file:px-3 file:py-1 cursor-pointer" data-testid="input-screenshot" />
                   {screenshot && (
                     <Button type="button" variant="destructive" size="sm" onClick={() => setScreenshot(undefined)}>Clear</Button>
                   )}
@@ -279,7 +315,7 @@ export default function LogTrade() {
 
             <div className="pt-4 border-t border-border/50 flex justify-end gap-4">
               <Button type="button" variant="ghost" onClick={() => setLocation("/journal")}>Cancel</Button>
-              <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90 px-8">
+              <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90 px-8" data-testid="button-submit">
                 {isEdit ? "Update Trade" : "Log Trade"}
               </Button>
             </div>

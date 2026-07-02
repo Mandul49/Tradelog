@@ -1,9 +1,8 @@
 import { useTrades } from "@/hooks/useTrades";
 import { useRules } from "@/hooks/useRules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart, CartesianGrid, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Area, AreaChart, CartesianGrid, Cell } from "recharts";
 import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const { trades } = useTrades();
@@ -26,11 +25,9 @@ export default function Dashboard() {
   const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
   const avgPnl = trades.length > 0 ? totalPnl / trades.length : 0;
 
-  // Best / Worst trades
   const bestTrade = [...trades].sort((a, b) => b.pnlAmount - a.pnlAmount)[0];
   const worstTrade = [...trades].sort((a, b) => a.pnlAmount - b.pnlAmount)[0];
 
-  // PnL by Asset
   const pnlByAssetObj: Record<string, number> = {};
   trades.forEach(t => {
     const key = t.asset === "Custom" ? (t.customAsset || "Custom") : t.asset;
@@ -38,38 +35,38 @@ export default function Dashboard() {
   });
   const pnlByAssetData = Object.entries(pnlByAssetObj).map(([name, pnl]) => ({ name, pnl }));
 
-  // Cumulative Equity
   let cumulative = 0;
-  const equityData = [...trades].sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()).map((t, i) => {
-    cumulative += t.pnlAmount;
-    return {
-      index: i + 1,
-      date: new Date(t.datetime).toLocaleDateString(),
-      equity: cumulative
-    };
-  });
+  const equityData = [...trades]
+    .sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime())
+    .map((t, i) => {
+      cumulative += t.pnlAmount;
+      return { index: i + 1, date: new Date(t.datetime).toLocaleDateString(), equity: cumulative };
+    });
 
-  // Rules discipline
   const tradesAllRules = trades.filter(t => t.rulesFollowed?.length === ruleLines.length && ruleLines.length > 0);
   const tradesBrokenRules = trades.filter(t => (t.rulesFollowed?.length || 0) < ruleLines.length);
-  
-  const winRateAllRules = tradesAllRules.length > 0 
-    ? (tradesAllRules.filter(t => t.pnlAmount > 0).length / tradesAllRules.length) * 100 
+
+  const winRateAllRules = tradesAllRules.length > 0
+    ? (tradesAllRules.filter(t => t.pnlAmount > 0).length / tradesAllRules.length) * 100
     : 0;
-  const winRateBrokenRules = tradesBrokenRules.length > 0 
-    ? (tradesBrokenRules.filter(t => t.pnlAmount > 0).length / tradesBrokenRules.length) * 100 
+  const winRateBrokenRules = tradesBrokenRules.length > 0
+    ? (tradesBrokenRules.filter(t => t.pnlAmount > 0).length / tradesBrokenRules.length) * 100
     : 0;
+
+  const fmt = (n: number) =>
+    `$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-6">
+      {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-card border-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total P&L</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${totalPnl >= 0 ? "text-success" : "text-destructive"}`}>
-              {totalPnl >= 0 ? "+" : ""}₦{totalPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className={`text-2xl font-bold ${totalPnl >= 0 ? "text-success" : "text-destructive"}`} data-testid="stat-total-pnl">
+              {totalPnl >= 0 ? "+" : "-"}{fmt(totalPnl)}
             </div>
           </CardContent>
         </Card>
@@ -78,7 +75,7 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Win Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{winRate.toFixed(1)}%</div>
+            <div className="text-2xl font-bold text-foreground" data-testid="stat-win-rate">{winRate.toFixed(1)}%</div>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
@@ -86,7 +83,7 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Trades</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{trades.length}</div>
+            <div className="text-2xl font-bold text-foreground" data-testid="stat-total-trades">{trades.length}</div>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
@@ -95,12 +92,13 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${avgPnl >= 0 ? "text-success" : "text-destructive"}`}>
-              {avgPnl >= 0 ? "+" : ""}₦{avgPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {avgPnl >= 0 ? "+" : "-"}{fmt(avgPnl)}
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="bg-card border-border">
           <CardHeader>
@@ -111,16 +109,17 @@ export default function Dashboard() {
               <AreaChart data={equityData}>
                 <defs>
                   <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={cumulative >= 0 ? "hsl(var(--success))" : "hsl(var(--destructive))"} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={cumulative >= 0 ? "hsl(var(--success))" : "hsl(var(--destructive))"} stopOpacity={0}/>
+                    <stop offset="5%" stopColor={cumulative >= 0 ? "hsl(var(--success))" : "hsl(var(--destructive))"} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={cumulative >= 0 ? "hsl(var(--success))" : "hsl(var(--destructive))"} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="index" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₦${v}`} />
-                <RechartsTooltip 
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <RechartsTooltip
                   contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", color: "hsl(var(--foreground))" }}
                   labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-                  formatter={(value: number) => [`₦${value.toLocaleString()}`, "Equity"]}
+                  formatter={(value: number) => [`$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Equity"]}
                 />
                 <Area type="monotone" dataKey="equity" stroke={cumulative >= 0 ? "hsl(var(--success))" : "hsl(var(--destructive))"} fillOpacity={1} fill="url(#colorEquity)" />
               </AreaChart>
@@ -136,11 +135,11 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={pnlByAssetData}>
                 <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <RechartsTooltip 
-                  cursor={{fill: "hsl(var(--muted))", opacity: 0.4}}
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                <RechartsTooltip
+                  cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
                   contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", color: "hsl(var(--foreground))" }}
-                  formatter={(value: number) => [`₦${value.toLocaleString()}`, "P&L"]}
+                  formatter={(value: number) => [`$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "P&L"]}
                 />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                   {pnlByAssetData.map((entry, index) => (
@@ -153,6 +152,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Best / Worst */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="bg-card border-border">
           <CardHeader>
@@ -163,7 +163,7 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">{new Date(bestTrade.datetime).toLocaleDateString()}</span>
-                  <span className="font-medium text-success">+₦{bestTrade.pnlAmount.toLocaleString()}</span>
+                  <span className="font-medium text-success">+{fmt(bestTrade.pnlAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="font-semibold">{bestTrade.asset === "Custom" ? bestTrade.customAsset : bestTrade.asset}</span>
@@ -182,7 +182,7 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">{new Date(worstTrade.datetime).toLocaleDateString()}</span>
-                  <span className="font-medium text-destructive">₦{worstTrade.pnlAmount.toLocaleString()}</span>
+                  <span className="font-medium text-destructive">-{fmt(worstTrade.pnlAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="font-semibold">{worstTrade.asset === "Custom" ? worstTrade.customAsset : worstTrade.asset}</span>
@@ -194,6 +194,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Rules discipline */}
       {ruleLines.length > 0 && (
         <Card className="bg-card border-border">
           <CardHeader>
@@ -212,7 +213,6 @@ export default function Dashboard() {
                 <div className="text-xs text-muted-foreground mt-1">{tradesBrokenRules.length} trades</div>
               </div>
             </div>
-
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground uppercase bg-secondary/30">
@@ -229,13 +229,12 @@ export default function Dashboard() {
                     const broken = trades.filter(t => !t.rulesFollowed?.includes(rule));
                     const wrFollowed = followed.length > 0 ? (followed.filter(t => t.pnlAmount > 0).length / followed.length) * 100 : 0;
                     const wrBroken = broken.length > 0 ? (broken.filter(t => t.pnlAmount > 0).length / broken.length) * 100 : 0;
-                    
                     return (
                       <tr key={idx} className="border-b border-border/50">
                         <td className="px-4 py-3 text-foreground">{rule}</td>
                         <td className="px-4 py-3 text-center">{followed.length}</td>
-                        <td className="px-4 py-3 text-right">{followed.length > 0 ? `${wrFollowed.toFixed(1)}%` : '-'}</td>
-                        <td className="px-4 py-3 text-right">{broken.length > 0 ? `${wrBroken.toFixed(1)}%` : '-'}</td>
+                        <td className="px-4 py-3 text-right">{followed.length > 0 ? `${wrFollowed.toFixed(1)}%` : "-"}</td>
+                        <td className="px-4 py-3 text-right">{broken.length > 0 ? `${wrBroken.toFixed(1)}%` : "-"}</td>
                       </tr>
                     );
                   })}

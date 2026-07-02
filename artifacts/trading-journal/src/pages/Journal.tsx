@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useTrades } from "@/hooks/useTrades";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { Trade } from "@/types";
 import { TradeDetailModal } from "@/components/TradeDetailModal";
 import { Trash2, Edit, ArrowUpDown } from "lucide-react";
@@ -11,7 +11,7 @@ export default function Journal() {
   const [, setLocation] = useLocation();
   const [filterAsset, setFilterAsset] = useState<string>("All");
   const [filterResult, setFilterResult] = useState<string>("All");
-  
+
   const [sortField, setSortField] = useState<keyof Trade | "">("datetime");
   const [sortDesc, setSortDesc] = useState(true);
 
@@ -59,25 +59,30 @@ export default function Journal() {
     }
   };
 
+  const fmt = (n: number) =>
+    `$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   return (
     <div className="space-y-4">
       <div className="flex gap-4 items-center bg-card p-4 rounded-lg border border-border shadow-sm">
         <div className="flex items-center gap-2">
           <label className="text-sm text-muted-foreground font-medium">Asset:</label>
-          <select 
-            value={filterAsset} 
+          <select
+            value={filterAsset}
             onChange={e => setFilterAsset(e.target.value)}
             className="bg-input border border-border rounded px-3 py-1.5 text-sm outline-none focus:border-primary text-foreground"
+            data-testid="filter-asset"
           >
             {assets.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm text-muted-foreground font-medium">Result:</label>
-          <select 
-            value={filterResult} 
+          <select
+            value={filterResult}
             onChange={e => setFilterResult(e.target.value)}
             className="bg-input border border-border rounded px-3 py-1.5 text-sm outline-none focus:border-primary text-foreground"
+            data-testid="filter-result"
           >
             <option value="All">All</option>
             <option value="Win">Win</option>
@@ -96,13 +101,16 @@ export default function Journal() {
                 </th>
                 <th className="px-4 py-3 font-medium">Asset</th>
                 <th className="px-4 py-3 font-medium">Dir</th>
-                <th className="px-4 py-3 font-medium text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("stake")}>
-                  <div className="flex items-center justify-end gap-1">Stake (₦) <ArrowUpDown className="w-3 h-3" /></div>
+                <th className="px-4 py-3 font-medium text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("originalBalance")}>
+                  <div className="flex items-center justify-end gap-1">Orig. Bal ($) <ArrowUpDown className="w-3 h-3" /></div>
                 </th>
-                <th className="px-4 py-3 font-medium text-right">Entry</th>
-                <th className="px-4 py-3 font-medium text-right">Exit</th>
+                <th className="px-4 py-3 font-medium text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("currentBalance")}>
+                  <div className="flex items-center justify-end gap-1">Curr. Bal ($) <ArrowUpDown className="w-3 h-3" /></div>
+                </th>
+                <th className="px-4 py-3 font-medium text-right">Entry ($)</th>
+                <th className="px-4 py-3 font-medium text-right">Exit ($)</th>
                 <th className="px-4 py-3 font-medium text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("pnlAmount")}>
-                  <div className="flex items-center justify-end gap-1">P&L (₦) <ArrowUpDown className="w-3 h-3" /></div>
+                  <div className="flex items-center justify-end gap-1">P&L ($) <ArrowUpDown className="w-3 h-3" /></div>
                 </th>
                 <th className="px-4 py-3 font-medium text-right">P&L (%)</th>
                 <th className="px-4 py-3 font-medium text-center">Result</th>
@@ -113,24 +121,26 @@ export default function Journal() {
             <tbody>
               {filteredAndSorted.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
                     No trades match the filters.
                   </td>
                 </tr>
               ) : filteredAndSorted.map(t => (
-                <tr 
-                  key={t.id} 
+                <tr
+                  key={t.id}
+                  data-testid={`row-trade-${t.id}`}
                   className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors"
                   onClick={() => setSelectedTrade(t)}
                 >
-                  <td className="px-4 py-3">{new Date(t.datetime).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'})}</td>
+                  <td className="px-4 py-3">{new Date(t.datetime).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</td>
                   <td className="px-4 py-3 font-medium">{t.asset === "Custom" ? t.customAsset : t.asset}</td>
                   <td className="px-4 py-3 uppercase text-xs">{t.direction}</td>
-                  <td className="px-4 py-3 text-right">{t.stake.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">{t.entryPrice}</td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">{t.exitPrice}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{fmt(t.originalBalance)}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{fmt(t.currentBalance)}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{t.entryPrice || "—"}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{t.exitPrice || "—"}</td>
                   <td className={`px-4 py-3 text-right font-semibold ${t.pnlAmount >= 0 ? "text-success" : "text-destructive"}`}>
-                    {t.pnlAmount > 0 ? "+" : ""}{t.pnlAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {t.pnlAmount > 0 ? "+" : "-"}{fmt(t.pnlAmount)}
                   </td>
                   <td className={`px-4 py-3 text-right ${t.pnlAmount >= 0 ? "text-success" : "text-destructive"}`}>
                     {t.pnlPercent > 0 ? "+" : ""}{t.pnlPercent.toFixed(2)}%
@@ -152,10 +162,10 @@ export default function Journal() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setLocation(`/log/${t.id}`)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setLocation(`/log/${t.id}`)} data-testid={`button-edit-${t.id}`}>
                         <Edit className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => {
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" data-testid={`button-delete-${t.id}`} onClick={() => {
                         if (confirm("Delete this trade?")) deleteTrade(t.id);
                       }}>
                         <Trash2 className="w-4 h-4" />
@@ -169,10 +179,10 @@ export default function Journal() {
         </div>
       </div>
 
-      <TradeDetailModal 
-        trade={selectedTrade} 
-        open={!!selectedTrade} 
-        onOpenChange={(open) => !open && setSelectedTrade(null)} 
+      <TradeDetailModal
+        trade={selectedTrade}
+        open={!!selectedTrade}
+        onOpenChange={(open) => !open && setSelectedTrade(null)}
       />
     </div>
   );

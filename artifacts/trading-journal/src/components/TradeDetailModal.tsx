@@ -2,8 +2,11 @@ import { Trade } from "@/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
-export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade | null; open: boolean; onOpenChange: (open: boolean) => void }) {
   if (!trade) return null;
+
+  const fmt = (n: number) =>
+    `$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -31,22 +34,28 @@ export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade |
             </Badge>
           </div>
           <div>
-            <div className="text-muted-foreground">Stake</div>
-            <div>₦ {trade.stake.toLocaleString()}</div>
+            <div className="text-muted-foreground">Original Balance</div>
+            <div>{fmt(trade.originalBalance)}</div>
           </div>
           <div>
-            <div className="text-muted-foreground">P&L</div>
-            <div className={trade.pnlAmount >= 0 ? "text-success font-semibold" : "text-destructive font-semibold"}>
-              ₦ {trade.pnlAmount.toLocaleString()} ({trade.pnlPercent.toFixed(2)}%)
+            <div className="text-muted-foreground">Current Balance</div>
+            <div className={trade.currentBalance >= trade.originalBalance ? "text-success font-semibold" : "text-destructive font-semibold"}>
+              {fmt(trade.currentBalance)}
             </div>
           </div>
           <div>
             <div className="text-muted-foreground">Entry Price</div>
-            <div>{trade.entryPrice}</div>
+            <div>{trade.entryPrice ? `$${trade.entryPrice}` : "—"}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Exit Price</div>
-            <div>{trade.exitPrice}</div>
+            <div>{trade.exitPrice ? `$${trade.exitPrice}` : "—"}</div>
+          </div>
+          <div className="col-span-2">
+            <div className="text-muted-foreground">P&L</div>
+            <div className={`font-semibold ${trade.pnlAmount >= 0 ? "text-success" : "text-destructive"}`}>
+              {trade.pnlAmount > 0 ? "+" : "-"}{fmt(trade.pnlAmount)} ({trade.pnlPercent > 0 ? "+" : ""}{trade.pnlPercent.toFixed(2)}%)
+            </div>
           </div>
         </div>
 
@@ -59,7 +68,7 @@ export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade |
             <div className="text-muted-foreground text-sm mb-1">Reflection</div>
             <div className="bg-input p-3 rounded-md text-sm border border-border">{trade.reflection || "None"}</div>
           </div>
-          
+
           {trade.rulesFollowed && trade.rulesFollowed.length > 0 && (
             <div>
               <div className="text-muted-foreground text-sm mb-1">Rules Followed</div>
@@ -73,7 +82,7 @@ export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade |
             <div>
               <div className="text-muted-foreground text-sm mb-1">Tags</div>
               <div className="flex gap-2 flex-wrap">
-                {trade.tags.map((t, i) => <Badge key={i} variant="secondary" className="bg-secondary text-secondary-foreground">{t}</Badge>)}
+                {trade.tags.map((tag, i) => <Badge key={i} variant="secondary" className="bg-secondary text-secondary-foreground">{tag}</Badge>)}
               </div>
             </div>
           )}
