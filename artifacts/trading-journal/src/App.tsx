@@ -115,14 +115,14 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 }
 
 function App() {
-  const { currentEmail, logOut } = useAuth();
+  const { currentEmail, logOut, signUp, logIn } = useAuth();
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
 
   if (!currentEmail) {
-    return <AuthPage onAuth={() => {}} />;
+    return <AuthPage signUp={signUp} logIn={logIn} />;
   }
 
   return <AppShell onLogout={logOut} />;

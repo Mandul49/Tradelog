@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Activity } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
-  onAuth: () => void;
+  signUp: (email: string, password: string) => { ok: boolean; error?: string };
+  logIn: (email: string, password: string) => { ok: boolean; error?: string };
 }
 
-export default function AuthPage({ onAuth }: Props) {
-  const { signUp, logIn } = useAuth();
+export default function AuthPage({ signUp, logIn }: Props) {
   const [tab, setTab] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +28,6 @@ export default function AuthPage({ onAuth }: Props) {
       const res = logIn(email, password);
       if (!res.ok) { setError(res.error ?? "Error"); return; }
     }
-    onAuth();
   };
 
   const switchTab = (t: "login" | "signup") => {
