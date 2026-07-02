@@ -11,6 +11,48 @@ import { Textarea } from "@/components/ui/textarea";
 // ── Deriv volatility markets ──────────────────────────────────────────────────
 const DERIV_MARKETS: { group: string; items: string[] }[] = [
   {
+    group: "Forex Majors",
+    items: [
+      "EUR/USD",
+      "GBP/USD",
+      "USD/JPY",
+      "USD/CHF",
+      "USD/CAD",
+      "AUD/USD",
+      "NZD/USD",
+    ],
+  },
+  {
+    group: "Forex Minors",
+    items: [
+      "EUR/GBP",
+      "EUR/JPY",
+      "EUR/AUD",
+      "EUR/CAD",
+      "EUR/CHF",
+      "EUR/NZD",
+      "GBP/JPY",
+      "GBP/AUD",
+      "GBP/CAD",
+      "GBP/CHF",
+      "GBP/NZD",
+      "AUD/JPY",
+      "AUD/CAD",
+      "AUD/CHF",
+      "AUD/NZD",
+      "NZD/JPY",
+      "NZD/CAD",
+      "NZD/CHF",
+      "CAD/JPY",
+      "CAD/CHF",
+      "CHF/JPY",
+    ],
+  },
+  {
+    group: "Metals",
+    items: ["XAU/USD", "XAG/USD"],
+  },
+  {
     group: "Volatility Indices",
     items: [
       "Volatility 10 Index",
