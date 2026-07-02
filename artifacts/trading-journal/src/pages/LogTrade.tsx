@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import { useTrades } from "@/hooks/useTrades";
 import { useRules } from "@/hooks/useRules";
@@ -7,20 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { RefreshCw } from "lucide-react";
-
-// Read a trade directly from localStorage — synchronous, no timing issues
-function loadTradeFromStorage(id: string | undefined): Trade | null {
-  if (!id) return null;
-  try {
-    const raw = localStorage.getItem("trading-journal-trades");
-    if (!raw) return null;
-    const all: Trade[] = JSON.parse(raw);
-    return all.find(t => t.id === id) ?? null;
-  } catch {
-    return null;
-  }
-}
 
 // ── Deriv volatility markets ──────────────────────────────────────────────────
 const DERIV_MARKETS: { group: string; items: string[] }[] = [
@@ -75,9 +61,21 @@ const DERIV_MARKETS: { group: string; items: string[] }[] = [
   },
 ];
 
-const ALL_KNOWN_ASSETS = DERIV_MARKETS.flatMap(g => g.items);
-
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Read a trade directly from localStorage — synchronous, no timing issues
+function loadTradeFromStorage(id: string | undefined): Trade | null {
+  if (!id) return null;
+  try {
+    const raw = localStorage.getItem("trading-journal-trades");
+    if (!raw) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all: any[] = JSON.parse(raw);
+    return (all.find(t => t.id === id) as Trade) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export default function LogTrade() {
   const params = useParams();
@@ -85,8 +83,8 @@ export default function LogTrade() {
   const { addTrade, updateTrade } = useTrades();
   const { ruleLines, setIsPanelOpen } = useRules();
 
-  // Load synchronously so form is pre-filled on first render — no useEffect race
   const isEdit = !!params.id;
+  // Synchronous load so form is pre-filled on first render
   const existingTrade = useState(() => loadTradeFromStorage(params.id))[0];
 
   const [datetime, setDatetime] = useState(() => {
@@ -98,55 +96,37 @@ export default function LogTrade() {
   const [asset, setAsset] = useState<string>(() => existingTrade?.asset ?? "Volatility 75 Index");
   const [customAsset, setCustomAsset] = useState(() => existingTrade?.customAsset ?? "");
   const [direction, setDirection] = useState<Trade["direction"]>(() => existingTrade?.direction ?? "buy");
-  const [lotSize, setLotSize] = useState<string>(() => existingTrade ? (existingTrade.lotSize ?? 1).toString() : "1");
-  const [originalBalance, setOriginalBalance] = useState<string>(() => existingTrade ? existingTrade.originalBalance.toString() : "");
-  const [currentBalance, setCurrentBalance] = useState<string>(() => existingTrade ? existingTrade.currentBalance.toString() : "");
-  const [entryPrice, setEntryPrice] = useState<string>(() => existingTrade?.entryPrice ? existingTrade.entryPrice.toString() : "");
-  const [exitPrice, setExitPrice] = useState<string>(() => existingTrade?.exitPrice ? existingTrade.exitPrice.toString() : "");
+  const [lotSize, setLotSize] = useState<string>(() =>
+    existingTrade ? (existingTrade.lotSize ?? 1).toString() : "1"
+  );
+  const [entryPrice, setEntryPrice] = useState<string>(() =>
+    existingTrade?.entryPrice ? existingTrade.entryPrice.toString() : ""
+  );
+  const [exitPrice, setExitPrice] = useState<string>(() =>
+    existingTrade?.exitPrice ? existingTrade.exitPrice.toString() : ""
+  );
   const [reasoning, setReasoning] = useState(() => existingTrade?.reasoning ?? "");
   const [reflection, setReflection] = useState(() => existingTrade?.reflection ?? "");
-  const [tags, setTags] = useState(() => existingTrade ? existingTrade.tags.join(", ") : "");
+  const [tags, setTags] = useState(() => (existingTrade ? existingTrade.tags.join(", ") : ""));
   const [screenshot, setScreenshot] = useState<string | undefined>(() => existingTrade?.screenshot);
   const [rulesFollowed, setRulesFollowed] = useState<string[]>(() => existingTrade?.rulesFollowed ?? []);
-  // Pre-existing trades: keep currentBalance as entered, don't auto-overwrite
-  const [balanceManual, setBalanceManual] = useState(() => !!existingTrade);
 
-  // ── Auto-calculate current balance ────────────────────────────────────────
-  const computeCurrentBalance = useCallback(
-    (origBal: string, entry: string, exit: string, lot: string, dir: Trade["direction"]) => {
-      const o = parseFloat(origBal);
+  // ── Live P&L computation ───────────────────────────────────────────────────
+  const computePnl = useCallback(
+    (entry: string, exit: string, lot: string, dir: Trade["direction"]): number | null => {
       const en = parseFloat(entry);
       const ex = parseFloat(exit);
       const ls = parseFloat(lot);
-      if (!o || !en || !ex || !ls) return null;
-      const pnl = dir === "buy"
-        ? (ex - en) * ls
-        : (en - ex) * ls;
-      return (o + pnl).toFixed(2);
+      if (!en || !ex || !ls) return null;
+      return dir === "buy" ? (ex - en) * ls : (en - ex) * ls;
     },
     []
   );
 
-  useEffect(() => {
-    if (balanceManual) return;
-    const result = computeCurrentBalance(originalBalance, entryPrice, exitPrice, lotSize, direction);
-    if (result !== null) setCurrentBalance(result);
-  }, [originalBalance, entryPrice, exitPrice, lotSize, direction, balanceManual, computeCurrentBalance]);
+  const pnlAmount = computePnl(entryPrice, exitPrice, lotSize, direction) ?? 0;
+  const showPreview = entryPrice !== "" && exitPrice !== "" && lotSize !== "";
 
-  // ── Derived P&L values for preview ────────────────────────────────────────
-  const origNum = parseFloat(originalBalance) || 0;
-  const currNum = parseFloat(currentBalance) || 0;
-  const pnlAmount = origNum > 0 && currNum > 0 ? currNum - origNum : 0;
-  const pnlPercent = origNum > 0 && currNum > 0 ? ((currNum - origNum) / origNum) * 100 : 0;
-  const showPreview = originalBalance !== "" && currentBalance !== "";
-  const isAutoCalcActive =
-    !balanceManual &&
-    originalBalance !== "" &&
-    entryPrice !== "" &&
-    exitPrice !== "" &&
-    lotSize !== "";
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -158,25 +138,23 @@ export default function LogTrade() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!originalBalance || !currentBalance) {
-      alert("Original Balance and Current Balance are required.");
+    const pnl = computePnl(entryPrice, exitPrice, lotSize, direction);
+    if (pnl === null) {
+      alert("Please fill in Entry Price, Exit Price, and Lot Size to calculate P&L.");
       return;
     }
 
     const trade: Trade = {
-      id: isEdit ? existingTrade!.id : crypto.randomUUID(),
+      id: isEdit && existingTrade ? existingTrade.id : crypto.randomUUID(),
       datetime: new Date(datetime).toISOString(),
       asset,
       customAsset: asset === "Custom" ? customAsset : undefined,
       direction,
       lotSize: parseFloat(lotSize) || 1,
-      originalBalance: origNum,
-      currentBalance: currNum,
       entryPrice: parseFloat(entryPrice) || 0,
       exitPrice: parseFloat(exitPrice) || 0,
-      pnlAmount,
-      pnlPercent,
-      result: pnlAmount >= 0 ? "win" : "loss",
+      pnlAmount: pnl,
+      result: pnl >= 0 ? "win" : "loss",
       reasoning,
       reflection,
       screenshot,
@@ -194,6 +172,9 @@ export default function LogTrade() {
       prev.includes(rule) ? prev.filter(r => r !== rule) : [...prev, rule]
     );
   };
+
+  const fmtPnl = (n: number) =>
+    `${n >= 0 ? "+" : "-"}$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -270,8 +251,8 @@ export default function LogTrade() {
               </div>
             </div>
 
-            {/* Row 2: Entry · Exit · Lot Size · Original Balance */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {/* Row 2: Entry · Exit · Lot Size · P&L preview */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 items-end">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Entry Price ($)</label>
                 <Input
@@ -282,6 +263,7 @@ export default function LogTrade() {
                   onChange={e => setEntryPrice(e.target.value)}
                   className="bg-input"
                   data-testid="input-entry-price"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -294,6 +276,7 @@ export default function LogTrade() {
                   onChange={e => setExitPrice(e.target.value)}
                   className="bg-input"
                   data-testid="input-exit-price"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -304,74 +287,16 @@ export default function LogTrade() {
                   min="0"
                   placeholder="e.g. 1"
                   value={lotSize}
-                  onChange={e => { setLotSize(e.target.value); setBalanceManual(false); }}
+                  onChange={e => setLotSize(e.target.value)}
                   className="bg-input"
                   data-testid="input-lot-size"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Original Balance ($)</label>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="Balance before trade"
-                  value={originalBalance}
-                  onChange={e => setOriginalBalance(e.target.value)}
-                  className="bg-input"
-                  data-testid="input-original-balance"
                   required
                 />
               </div>
-            </div>
-
-            {/* Row 3: Current Balance (auto or manual) + P&L preview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">
-                    Current Balance ($)
-                    {isAutoCalcActive && (
-                      <span className="ml-2 text-[10px] font-normal tracking-wide uppercase text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                        Auto
-                      </span>
-                    )}
-                  </label>
-                  {balanceManual && (
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                      onClick={() => setBalanceManual(false)}
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      Recalculate
-                    </button>
-                  )}
-                </div>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="Balance after trade"
-                  value={currentBalance}
-                  onChange={e => { setCurrentBalance(e.target.value); setBalanceManual(true); }}
-                  className={`bg-input ${isAutoCalcActive ? "text-primary" : ""}`}
-                  data-testid="input-current-balance"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2 md:pt-7">
-                <div className="text-sm text-muted-foreground mb-1">P&L</div>
-                <div className={`text-xl font-bold ${showPreview ? (pnlAmount >= 0 ? "text-success" : "text-destructive") : "text-muted-foreground"}`}>
-                  {showPreview ? (
-                    <>
-                      {pnlAmount > 0 ? "+" : ""}${Math.abs(pnlAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      <span className="text-sm font-normal ml-2 opacity-80">
-                        ({pnlPercent > 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
-                      </span>
-                    </>
-                  ) : "—"}
+                <label className="text-sm font-medium text-muted-foreground">P&L</label>
+                <div className={`h-10 flex items-center px-3 rounded-md border ${showPreview ? (pnlAmount >= 0 ? "border-success/40 bg-success/10 text-success" : "border-destructive/40 bg-destructive/10 text-destructive") : "border-border bg-input text-muted-foreground"} text-sm font-semibold`}>
+                  {showPreview ? fmtPnl(pnlAmount) : "—"}
                 </div>
               </div>
             </div>

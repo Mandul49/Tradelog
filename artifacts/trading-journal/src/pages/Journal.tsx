@@ -18,7 +18,6 @@ export default function Journal() {
   const [sortDesc, setSortDesc] = useState(true);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
 
-  // Running balance chain (chronological, re-computed whenever trades or openingBalance change)
   const balanceMap = useMemo(
     () => buildBalanceMap(trades, openingBalance),
     [trades, openingBalance]
@@ -38,7 +37,7 @@ export default function Journal() {
     });
 
     if (sortField) {
-      result.sort((a, b) => {
+      result = [...result].sort((a, b) => {
         let valA: string | number | boolean | string[] | undefined = a[sortField as keyof Trade];
         let valB: string | number | boolean | string[] | undefined = b[sortField as keyof Trade];
         if (sortField === "datetime") {
@@ -61,6 +60,8 @@ export default function Journal() {
 
   const fmt = (n: number) =>
     `$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const selectedBal = selectedTrade ? balanceMap.get(selectedTrade.id) : undefined;
 
   return (
     <div className="space-y-4">
@@ -143,7 +144,7 @@ export default function Journal() {
                       {t.pnlAmount > 0 ? "+" : "-"}{fmt(t.pnlAmount)}
                     </td>
                     <td className={`px-4 py-3 text-right ${t.pnlAmount >= 0 ? "text-success" : "text-destructive"}`}>
-                      {t.pnlPercent > 0 ? "+" : ""}{t.pnlPercent.toFixed(2)}%
+                      {bal ? `${bal.pnlPercent >= 0 ? "+" : ""}${bal.pnlPercent.toFixed(2)}%` : "—"}
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
                       {bal ? fmt(bal.balanceBefore) : "—"}
@@ -166,12 +167,24 @@ export default function Journal() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setLocation(`/log/${t.id}`)} data-testid={`button-edit-${t.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => setLocation(`/log/${t.id}`)}
+                          data-testid={`button-edit-${t.id}`}
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" data-testid={`button-delete-${t.id}`} onClick={() => {
-                          if (confirm("Delete this trade?")) deleteTrade(t.id);
-                        }}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          data-testid={`button-delete-${t.id}`}
+                          onClick={() => {
+                            if (confirm("Delete this trade?")) deleteTrade(t.id);
+                          }}
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -188,6 +201,9 @@ export default function Journal() {
         trade={selectedTrade}
         open={!!selectedTrade}
         onOpenChange={open => !open && setSelectedTrade(null)}
+        balanceBefore={selectedBal?.balanceBefore}
+        balanceAfter={selectedBal?.balanceAfter}
+        pnlPercent={selectedBal?.pnlPercent}
       />
     </div>
   );

@@ -1,38 +1,44 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Trade } from "@/types";
 
 const TRADES_STORAGE_KEY = "trading-journal-trades";
 
+function loadFromStorage(): Trade[] {
+  try {
+    const raw = localStorage.getItem(TRADES_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Trade[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function useTrades() {
-  const [trades, setTrades] = useState<Trade[]>([]);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(TRADES_STORAGE_KEY);
-    if (stored) {
-      try {
-        setTrades(JSON.parse(stored));
-      } catch (e) {
-        console.error("Failed to parse trades from localStorage", e);
-      }
-    }
-  }, []);
-
-  const saveTrades = useCallback((newTrades: Trade[]) => {
-    setTrades(newTrades);
-    localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(newTrades));
-  }, []);
+  // Synchronous init — no async useEffect, no stale-closure window
+  const [trades, setTrades] = useState<Trade[]>(loadFromStorage);
 
   const addTrade = useCallback((trade: Trade) => {
-    saveTrades([...trades, trade]);
-  }, [trades, saveTrades]);
+    setTrades(prev => {
+      const next = [...prev, trade];
+      localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const updateTrade = useCallback((updatedTrade: Trade) => {
-    saveTrades(trades.map(t => t.id === updatedTrade.id ? updatedTrade : t));
-  }, [trades, saveTrades]);
+    setTrades(prev => {
+      const next = prev.map(t => (t.id === updatedTrade.id ? updatedTrade : t));
+      localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const deleteTrade = useCallback((id: string) => {
-    saveTrades(trades.filter(t => t.id !== id));
-  }, [trades, saveTrades]);
+    setTrades(prev => {
+      const next = prev.filter(t => t.id !== id);
+      localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   return { trades, addTrade, updateTrade, deleteTrade };
 }

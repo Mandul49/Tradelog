@@ -2,7 +2,23 @@ import { Trade } from "@/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
-export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+interface TradeDetailModalProps {
+  trade: Trade | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  balanceBefore?: number;
+  balanceAfter?: number;
+  pnlPercent?: number;
+}
+
+export function TradeDetailModal({
+  trade,
+  open,
+  onOpenChange,
+  balanceBefore,
+  balanceAfter,
+  pnlPercent,
+}: TradeDetailModalProps) {
   if (!trade) return null;
 
   const fmt = (n: number) =>
@@ -29,18 +45,23 @@ export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade |
           </div>
           <div>
             <div className="text-muted-foreground">Result</div>
-            <Badge variant={trade.result === "win" ? "default" : "destructive"} className={trade.result === "win" ? "bg-success hover:bg-success text-success-foreground" : ""}>
+            <Badge
+              variant={trade.result === "win" ? "default" : "destructive"}
+              className={trade.result === "win" ? "bg-success hover:bg-success text-success-foreground" : ""}
+            >
               {trade.result.toUpperCase()}
             </Badge>
           </div>
           <div>
-            <div className="text-muted-foreground">Original Balance</div>
-            <div>{fmt(trade.originalBalance)}</div>
+            <div className="text-muted-foreground">Balance Before</div>
+            <div>{balanceBefore != null ? fmt(balanceBefore) : "—"}</div>
           </div>
           <div>
-            <div className="text-muted-foreground">Current Balance</div>
-            <div className={trade.currentBalance >= trade.originalBalance ? "text-success font-semibold" : "text-destructive font-semibold"}>
-              {fmt(trade.currentBalance)}
+            <div className="text-muted-foreground">Balance After</div>
+            <div className={balanceAfter != null && balanceBefore != null
+              ? (balanceAfter >= balanceBefore ? "text-success font-semibold" : "text-destructive font-semibold")
+              : ""}>
+              {balanceAfter != null ? fmt(balanceAfter) : "—"}
             </div>
           </div>
           <div>
@@ -55,10 +76,15 @@ export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade |
             <div className="text-muted-foreground">Lot Size</div>
             <div>{trade.lotSize ?? "—"}</div>
           </div>
-          <div className="col-span-2">
+          <div>
             <div className="text-muted-foreground">P&L</div>
             <div className={`font-semibold ${trade.pnlAmount >= 0 ? "text-success" : "text-destructive"}`}>
-              {trade.pnlAmount > 0 ? "+" : "-"}{fmt(trade.pnlAmount)} ({trade.pnlPercent > 0 ? "+" : ""}{trade.pnlPercent.toFixed(2)}%)
+              {trade.pnlAmount >= 0 ? "+" : "-"}{fmt(trade.pnlAmount)}
+              {pnlPercent != null && (
+                <span className="ml-2 font-normal text-sm opacity-80">
+                  ({pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -86,7 +112,9 @@ export function TradeDetailModal({ trade, open, onOpenChange }: { trade: Trade |
             <div>
               <div className="text-muted-foreground text-sm mb-1">Tags</div>
               <div className="flex gap-2 flex-wrap">
-                {trade.tags.map((tag, i) => <Badge key={i} variant="secondary" className="bg-secondary text-secondary-foreground">{tag}</Badge>)}
+                {trade.tags.map((tag, i) => (
+                  <Badge key={i} variant="secondary" className="bg-secondary text-secondary-foreground">{tag}</Badge>
+                ))}
               </div>
             </div>
           )}
