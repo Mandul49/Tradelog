@@ -1,8 +1,8 @@
 export interface Trade {
   id: string;              // uuid
   datetime: string;        // ISO string
-  asset: "Vol 50" | "Vol 75" | "Vol 75 1s" | "Custom";
-  customAsset?: string;
+  asset: string;           // Deriv market name or "Custom"
+  customAsset?: string;    // only when asset === "Custom"
   direction: "buy" | "sell";
   originalBalance: number; // account balance before trade (USD)
   currentBalance: number;  // account balance after trade (USD)

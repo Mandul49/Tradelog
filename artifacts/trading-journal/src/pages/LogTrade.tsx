@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import { useTrades } from "@/hooks/useTrades";
 import { useRules } from "@/hooks/useRules";
@@ -7,6 +7,64 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { RefreshCw } from "lucide-react";
+
+// ── Deriv volatility markets ──────────────────────────────────────────────────
+const DERIV_MARKETS: { group: string; items: string[] }[] = [
+  {
+    group: "Volatility Indices",
+    items: [
+      "Volatility 10 Index",
+      "Volatility 25 Index",
+      "Volatility 50 Index",
+      "Volatility 75 Index",
+      "Volatility 100 Index",
+    ],
+  },
+  {
+    group: "Volatility Indices (1s)",
+    items: [
+      "Volatility 10 (1s) Index",
+      "Volatility 25 (1s) Index",
+      "Volatility 50 (1s) Index",
+      "Volatility 75 (1s) Index",
+      "Volatility 100 (1s) Index",
+    ],
+  },
+  {
+    group: "Boom & Crash",
+    items: [
+      "Boom 300 Index",
+      "Boom 500 Index",
+      "Boom 1000 Index",
+      "Crash 300 Index",
+      "Crash 500 Index",
+      "Crash 1000 Index",
+    ],
+  },
+  {
+    group: "Jump Indices",
+    items: [
+      "Jump 10 Index",
+      "Jump 25 Index",
+      "Jump 50 Index",
+      "Jump 75 Index",
+      "Jump 100 Index",
+    ],
+  },
+  {
+    group: "Range Break",
+    items: ["Range Break 100 Index", "Range Break 200 Index"],
+  },
+  {
+    group: "Other",
+    items: ["Step Index"],
+  },
+];
+
+const ALL_KNOWN_ASSETS = DERIV_MARKETS.flatMap(g => g.items);
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function LogTrade() {
   const params = useParams();
@@ -22,7 +80,7 @@ export default function LogTrade() {
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     return now.toISOString().slice(0, 16);
   });
-  const [asset, setAsset] = useState<Trade["asset"]>("Vol 75");
+  const [asset, setAsset] = useState<string>("Volatility 75 Index");
   const [customAsset, setCustomAsset] = useState("");
   const [direction, setDirection] = useState<Trade["direction"]>("buy");
   const [originalBalance, setOriginalBalance] = useState<string>("");
@@ -34,7 +92,30 @@ export default function LogTrade() {
   const [tags, setTags] = useState("");
   const [screenshot, setScreenshot] = useState<string | undefined>();
   const [rulesFollowed, setRulesFollowed] = useState<string[]>([]);
+  const [balanceManual, setBalanceManual] = useState(false);
 
+  // ── Auto-calculate current balance ────────────────────────────────────────
+  const computeCurrentBalance = useCallback(
+    (origBal: string, entry: string, exit: string, dir: Trade["direction"]) => {
+      const o = parseFloat(origBal);
+      const en = parseFloat(entry);
+      const ex = parseFloat(exit);
+      if (!o || !en || !ex || en === 0) return null;
+      const pct = dir === "buy"
+        ? (ex - en) / en
+        : (en - ex) / en;
+      return (o + pct * o).toFixed(2);
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (balanceManual) return;
+    const result = computeCurrentBalance(originalBalance, entryPrice, exitPrice, direction);
+    if (result !== null) setCurrentBalance(result);
+  }, [originalBalance, entryPrice, exitPrice, direction, balanceManual, computeCurrentBalance]);
+
+  // ── Populate form when editing ────────────────────────────────────────────
   useEffect(() => {
     if (existingTrade) {
       setDatetime(existingTrade.datetime.slice(0, 16));
@@ -43,30 +124,36 @@ export default function LogTrade() {
       setDirection(existingTrade.direction);
       setOriginalBalance(existingTrade.originalBalance.toString());
       setCurrentBalance(existingTrade.currentBalance.toString());
-      setEntryPrice(existingTrade.entryPrice.toString());
-      setExitPrice(existingTrade.exitPrice.toString());
+      setEntryPrice(existingTrade.entryPrice ? existingTrade.entryPrice.toString() : "");
+      setExitPrice(existingTrade.exitPrice ? existingTrade.exitPrice.toString() : "");
       setReasoning(existingTrade.reasoning);
       setReflection(existingTrade.reflection);
       setTags(existingTrade.tags.join(", "));
       setScreenshot(existingTrade.screenshot);
       setRulesFollowed(existingTrade.rulesFollowed || []);
+      // treat loaded trade as manual so we don't clobber saved currentBalance
+      setBalanceManual(true);
     }
   }, [existingTrade]);
 
+  // ── Derived P&L values for preview ────────────────────────────────────────
   const origNum = parseFloat(originalBalance) || 0;
   const currNum = parseFloat(currentBalance) || 0;
-
   const pnlAmount = origNum > 0 && currNum > 0 ? currNum - origNum : 0;
   const pnlPercent = origNum > 0 && currNum > 0 ? ((currNum - origNum) / origNum) * 100 : 0;
   const showPreview = originalBalance !== "" && currentBalance !== "";
+  const isAutoCalcActive =
+    !balanceManual &&
+    originalBalance !== "" &&
+    entryPrice !== "" &&
+    exitPrice !== "";
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setScreenshot(reader.result as string);
-      };
+      reader.onloadend = () => setScreenshot(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -90,19 +177,16 @@ export default function LogTrade() {
       exitPrice: parseFloat(exitPrice) || 0,
       pnlAmount,
       pnlPercent,
-      result: pnlAmount > 0 ? "win" : "loss",
+      result: pnlAmount >= 0 ? "win" : "loss",
       reasoning,
       reflection,
       screenshot,
       tags: tags.split(",").map(t => t.trim()).filter(Boolean),
-      rulesFollowed
+      rulesFollowed,
     };
 
-    if (isEdit) {
-      updateTrade(trade);
-    } else {
-      addTrade(trade);
-    }
+    if (isEdit) updateTrade(trade);
+    else addTrade(trade);
     setLocation("/journal");
   };
 
@@ -121,7 +205,7 @@ export default function LogTrade() {
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-8">
 
-            {/* Top Row: Date, Asset, Direction */}
+            {/* Row 1: Date · Asset · Direction */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Date & Time</label>
@@ -133,21 +217,29 @@ export default function LogTrade() {
                   required
                 />
               </div>
+
               <div className="space-y-2">
-                <label className="text-sm font-medium">Asset</label>
+                <label className="text-sm font-medium">Market</label>
                 <select
                   value={asset}
-                  onChange={e => setAsset(e.target.value as Trade["asset"])}
-                  className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-primary outline-none"
+                  onChange={e => setAsset(e.target.value)}
+                  className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-primary outline-none text-foreground"
+                  data-testid="select-asset"
                 >
-                  <option value="Vol 50">Vol 50</option>
-                  <option value="Vol 75">Vol 75</option>
-                  <option value="Vol 75 1s">Vol 75 1s</option>
-                  <option value="Custom">Custom</option>
+                  {DERIV_MARKETS.map(group => (
+                    <optgroup key={group.group} label={group.group}>
+                      {group.items.map(item => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                  <optgroup label="Other">
+                    <option value="Custom">Custom…</option>
+                  </optgroup>
                 </select>
                 {asset === "Custom" && (
                   <Input
-                    placeholder="Custom asset name"
+                    placeholder="Custom market name"
                     value={customAsset}
                     onChange={e => setCustomAsset(e.target.value)}
                     className="mt-2 bg-input"
@@ -155,6 +247,7 @@ export default function LogTrade() {
                   />
                 )}
               </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Direction</label>
                 <div className="flex bg-input rounded-md p-1 border border-border">
@@ -178,45 +271,14 @@ export default function LogTrade() {
               </div>
             </div>
 
-            {/* Balance & Price Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Original Balance ($)</label>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="Account balance before trade"
-                  value={originalBalance}
-                  onChange={e => setOriginalBalance(e.target.value)}
-                  className="bg-input"
-                  data-testid="input-original-balance"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Current Balance ($)</label>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="Account balance after trade"
-                  value={currentBalance}
-                  onChange={e => setCurrentBalance(e.target.value)}
-                  className="bg-input"
-                  data-testid="input-current-balance"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Entry / Exit / P&L Preview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            {/* Row 2: Entry · Exit · Original Balance */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Entry Price ($)</label>
                 <Input
                   type="number"
                   step="any"
+                  placeholder="Spot price at entry"
                   value={entryPrice}
                   onChange={e => setEntryPrice(e.target.value)}
                   className="bg-input"
@@ -228,18 +290,71 @@ export default function LogTrade() {
                 <Input
                   type="number"
                   step="any"
+                  placeholder="Spot price at exit"
                   value={exitPrice}
                   onChange={e => setExitPrice(e.target.value)}
                   className="bg-input"
                   data-testid="input-exit-price"
                 />
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Original Balance ($)</label>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="Balance before trade"
+                  value={originalBalance}
+                  onChange={e => setOriginalBalance(e.target.value)}
+                  className="bg-input"
+                  data-testid="input-original-balance"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Row 3: Current Balance (auto or manual) + P&L preview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">
+                    Current Balance ($)
+                    {isAutoCalcActive && (
+                      <span className="ml-2 text-[10px] font-normal tracking-wide uppercase text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                        Auto
+                      </span>
+                    )}
+                  </label>
+                  {balanceManual && (
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                      onClick={() => setBalanceManual(false)}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Recalculate
+                    </button>
+                  )}
+                </div>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="Balance after trade"
+                  value={currentBalance}
+                  onChange={e => { setCurrentBalance(e.target.value); setBalanceManual(true); }}
+                  className={`bg-input ${isAutoCalcActive ? "text-primary" : ""}`}
+                  data-testid="input-current-balance"
+                  required
+                />
+              </div>
+
               <div className="space-y-2 md:pt-7">
-                <div className="text-sm text-muted-foreground mb-1">Live P&L Preview</div>
-                <div className={`text-lg font-bold ${showPreview ? (pnlAmount >= 0 ? "text-success" : "text-destructive") : "text-muted-foreground"}`}>
+                <div className="text-sm text-muted-foreground mb-1">P&L</div>
+                <div className={`text-xl font-bold ${showPreview ? (pnlAmount >= 0 ? "text-success" : "text-destructive") : "text-muted-foreground"}`}>
                   {showPreview ? (
                     <>
-                      {pnlAmount > 0 ? "+" : ""}${pnlAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {pnlAmount > 0 ? "+" : ""}${Math.abs(pnlAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       <span className="text-sm font-normal ml-2 opacity-80">
                         ({pnlPercent > 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
                       </span>
@@ -249,7 +364,7 @@ export default function LogTrade() {
               </div>
             </div>
 
-            {/* Text Areas */}
+            {/* Text areas */}
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Reasoning (Why did I take this trade?)</label>
@@ -261,7 +376,7 @@ export default function LogTrade() {
               </div>
             </div>
 
-            {/* Rules Followed */}
+            {/* Rules checklist */}
             <div className="space-y-3 bg-secondary/20 p-4 rounded-lg border border-border">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium">Which rules did you follow?</label>
@@ -271,14 +386,13 @@ export default function LogTrade() {
                   </Button>
                 )}
               </div>
-
               {ruleLines.length > 0 ? (
                 <div className="space-y-2">
                   {ruleLines.map((rule, idx) => (
                     <label key={idx} className="flex items-start gap-3 cursor-pointer group">
                       <input
                         type="checkbox"
-                        className="mt-1 w-4 h-4 rounded border-border bg-input text-primary focus:ring-primary focus:ring-offset-background"
+                        className="mt-1 w-4 h-4 rounded border-border bg-input text-primary"
                         checked={rulesFollowed.includes(rule)}
                         onChange={() => toggleRule(rule)}
                       />
@@ -291,7 +405,7 @@ export default function LogTrade() {
               )}
             </div>
 
-            {/* Tags & Screenshot */}
+            {/* Tags & screenshot */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Tags (comma-separated)</label>
