@@ -24,6 +24,9 @@ export function useAuth() {
     async (email: string, password: string): Promise<{ ok: boolean; error?: string }> => {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) return { ok: false, error: error.message };
+      // Sign in immediately so the session is active without email confirmation
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) return { ok: false, error: signInError.message };
       return { ok: true };
     },
     []
