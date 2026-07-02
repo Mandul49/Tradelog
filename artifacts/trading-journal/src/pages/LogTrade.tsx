@@ -117,7 +117,7 @@ export default function LogTrade() {
       const en = parseFloat(entry);
       const ex = parseFloat(exit);
       const ls = parseFloat(lot);
-      if (!en || !ex || !ls) return null;
+      if (isNaN(en) || isNaN(ex) || isNaN(ls) || ls <= 0) return null;
       return dir === "buy" ? (ex - en) * ls : (en - ex) * ls;
     },
     []
