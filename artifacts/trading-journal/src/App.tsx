@@ -1,5 +1,6 @@
 import { Switch, Route, Router as WouterRouter, Link, useLocation } from "wouter";
 import { useEffect } from "react";
+import type { User } from "@supabase/supabase-js";
 import Dashboard from "@/pages/Dashboard";
 import Journal from "@/pages/Journal";
 import LogTrade from "@/pages/LogTrade";
@@ -10,19 +11,18 @@ import { useRules } from "@/hooks/useRules";
 import { useAuth } from "@/hooks/useAuth";
 import { BookOpen, Activity, List, PlusCircle, LogOut } from "lucide-react";
 
-function Nav({ onLogout }: { onLogout: () => void }) {
+function Nav({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [location, setLocation] = useLocation();
   const { setIsPanelOpen } = useRules();
-  const { currentUser } = useAuth();
 
-  const initials = currentUser
-    ? currentUser.username
-        .split(/[\s._-]/)
-        .map((p: string) => p[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "?";
+  const email = user.email ?? "";
+  const displayName = (user.user_metadata?.display_name as string | undefined) ?? email.split("@")[0];
+  const initials = displayName
+    .split(/[\s._-]/)
+    .map((p: string) => p[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "?";
 
   return (
     <header className="border-b border-border bg-card sticky top-0 z-40">
@@ -60,7 +60,6 @@ function Nav({ onLogout }: { onLogout: () => void }) {
             <BookOpen className="w-4 h-4" /> Rules
           </button>
 
-          {/* Profile avatar */}
           <button
             onClick={() => setLocation("/profile")}
             title="Profile"
@@ -73,7 +72,6 @@ function Nav({ onLogout }: { onLogout: () => void }) {
             {initials}
           </button>
 
-          {/* Logout */}
           <button
             onClick={onLogout}
             title="Log out"
@@ -87,11 +85,11 @@ function Nav({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function AppShell({ onLogout }: { onLogout: () => void }) {
+function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-        <Nav onLogout={onLogout} />
+        <Nav user={user} onLogout={onLogout} />
         <main className="max-w-7xl mx-auto px-4 py-8">
           <Switch>
             <Route path="/" component={Dashboard} />
@@ -115,17 +113,28 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 }
 
 function App() {
-  const { currentEmail, logOut, signUp, logIn } = useAuth();
+  const { user, loading, logOut, signUp, logIn } = useAuth();
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
 
-  if (!currentEmail) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Activity className="w-8 h-8 text-primary animate-pulse" />
+          <p className="text-sm">Loading TradeLog…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
     return <AuthPage signUp={signUp} logIn={logIn} />;
   }
 
-  return <AppShell onLogout={logOut} />;
+  return <AppShell user={user} onLogout={logOut} />;
 }
 
 export default App;

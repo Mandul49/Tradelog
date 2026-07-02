@@ -152,7 +152,9 @@ export default function LogTrade() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const pnl = computePnl(entryPrice, exitPrice, lotSize, direction);
     if (pnl === null) {
@@ -178,9 +180,10 @@ export default function LogTrade() {
       rulesFollowed,
     };
 
-    if (isEdit) updateTrade(trade);
-    else addTrade(trade);
-    setLocation("/journal");
+    setSaving(true);
+    const ok = isEdit ? await updateTrade(trade) : await addTrade(trade);
+    setSaving(false);
+    if (ok) setLocation("/journal");
   };
 
   const toggleRule = (rule: string) => {
@@ -382,8 +385,8 @@ export default function LogTrade() {
 
             <div className="pt-4 border-t border-border/50 flex justify-end gap-4">
               <Button type="button" variant="ghost" onClick={() => setLocation("/journal")}>Cancel</Button>
-              <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90 px-8" data-testid="button-submit">
-                {isEdit ? "Update Trade" : "Log Trade"}
+              <Button type="submit" disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90 px-8 disabled:opacity-60" data-testid="button-submit">
+                {saving ? "Saving…" : isEdit ? "Update Trade" : "Log Trade"}
               </Button>
             </div>
           </form>

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Activity } from "lucide-react";
 
 interface Props {
-  signUp: (email: string, password: string) => { ok: boolean; error?: string };
-  logIn: (email: string, password: string) => { ok: boolean; error?: string };
+  signUp: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  logIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export default function AuthPage({ signUp, logIn }: Props) {
@@ -12,21 +12,24 @@ export default function AuthPage({ signUp, logIn }: Props) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSubmitting(true);
 
-    if (tab === "signup") {
-      if (password !== confirm) {
-        setError("Passwords do not match.");
-        return;
+    try {
+      if (tab === "signup") {
+        if (password !== confirm) { setError("Passwords do not match."); return; }
+        const res = await signUp(email, password);
+        if (!res.ok) { setError(res.error ?? "Sign up failed."); return; }
+      } else {
+        const res = await logIn(email, password);
+        if (!res.ok) { setError(res.error ?? "Login failed."); return; }
       }
-      const res = signUp(email, password);
-      if (!res.ok) { setError(res.error ?? "Error"); return; }
-    } else {
-      const res = logIn(email, password);
-      if (!res.ok) { setError(res.error ?? "Error"); return; }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -68,18 +71,9 @@ export default function AuthPage({ signUp, logIn }: Props) {
 
             <div className="grid grid-cols-1 gap-4">
               {[
-                {
-                  title: "Running Balance",
-                  desc: "Calculates and updates your balance after every logged trade automatically.",
-                },
-                {
-                  title: "Manual Deposits",
-                  desc: "Supports deposit entries to keep your balance accurate alongside trading activity.",
-                },
-                {
-                  title: "Performance Insights",
-                  desc: "Win rate, reward-to-risk, and balance growth — all in one clear view.",
-                },
+                { title: "Running Balance", desc: "Calculates and updates your balance after every logged trade automatically." },
+                { title: "Manual Deposits", desc: "Supports deposit entries to keep your balance accurate alongside trading activity." },
+                { title: "Performance Insights", desc: "Win rate, reward-to-risk, and balance growth — all in one clear view." },
               ].map(f => (
                 <div key={f.title} className="flex gap-3 items-start">
                   <div className="mt-1 w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
@@ -97,7 +91,6 @@ export default function AuthPage({ signUp, logIn }: Props) {
         <div className="lg:w-1/2 flex items-center justify-center px-8 py-16 lg:py-24">
           <div className="w-full max-w-sm">
 
-            {/* Logo (mobile only) */}
             <div className="flex items-center gap-2 mb-8 lg:hidden">
               <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
                 <Activity className="w-4 h-4 text-primary-foreground" />
@@ -111,21 +104,16 @@ export default function AuthPage({ signUp, logIn }: Props) {
               {tab === "login" ? "Welcome back" : "Create account"}
             </h2>
             <p className="text-muted-foreground text-sm mb-8">
-              {tab === "login"
-                ? "Sign in to your TradeLog account."
-                : "Start tracking your trading performance."}
+              {tab === "login" ? "Sign in to your TradeLog account." : "Start tracking your trading performance."}
             </p>
 
-            {/* Tabs */}
             <div className="flex gap-1 mb-6 bg-secondary/40 p-1 rounded-lg">
               {(["login", "signup"] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => switchTab(t)}
                   className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                    tab === t
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                    tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {t === "login" ? "Log In" : "Sign Up"}
@@ -133,7 +121,6 @@ export default function AuthPage({ signUp, logIn }: Props) {
               ))}
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1.5">Email</label>
@@ -154,7 +141,7 @@ export default function AuthPage({ signUp, logIn }: Props) {
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="Min. 4 characters"
+                  placeholder="Min. 6 characters"
                   autoComplete={tab === "signup" ? "new-password" : "current-password"}
                   required
                   className="w-full bg-secondary border border-border rounded-md px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
@@ -184,24 +171,22 @@ export default function AuthPage({ signUp, logIn }: Props) {
 
               <button
                 type="submit"
-                className="w-full bg-primary text-primary-foreground rounded-md py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors mt-1"
+                disabled={submitting}
+                className="w-full bg-primary text-primary-foreground rounded-md py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {tab === "login" ? "Log In" : "Create Account"}
+                {submitting ? "Please wait…" : tab === "login" ? "Log In" : "Create Account"}
               </button>
             </form>
 
             <p className="text-xs text-muted-foreground text-center mt-6">
               {tab === "login" ? "Don't have an account? " : "Already have an account? "}
-              <button
-                onClick={() => switchTab(tab === "login" ? "signup" : "login")}
-                className="text-primary hover:underline font-medium"
-              >
+              <button onClick={() => switchTab(tab === "login" ? "signup" : "login")} className="text-primary hover:underline font-medium">
                 {tab === "login" ? "Sign up" : "Log in"}
               </button>
             </p>
 
             <p className="text-xs text-muted-foreground/50 text-center mt-4">
-              Your data is stored locally on this device only.
+              Your data is stored securely in the cloud.
             </p>
           </div>
         </div>

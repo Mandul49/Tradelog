@@ -3,47 +3,56 @@ import { User, Mail, Lock, CheckCircle, AlertCircle, ChevronDown, ChevronUp } fr
 import { useAuth } from "@/hooks/useAuth";
 
 export default function ProfilePage() {
-  const { currentUser, changePassword, updateUsername } = useAuth();
+  const { user, changePassword, updateDisplayName } = useAuth();
 
-  const [displayName, setDisplayName] = useState(currentUser?.username ?? "");
+  const email = user?.email ?? "";
+  const currentDisplayName = (user?.user_metadata?.display_name as string | undefined) ?? email.split("@")[0];
+
+  const [displayName, setDisplayName] = useState(currentDisplayName);
   const [nameSuccess, setNameSuccess] = useState("");
   const [nameError, setNameError] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
 
   const [pwOpen, setPwOpen] = useState(false);
-  const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [pwSuccess, setPwSuccess] = useState("");
   const [pwError, setPwError] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
 
-  if (!currentUser) return null;
+  if (!user) return null;
 
-  const initials = currentUser.username
+  const initials = currentDisplayName
     .split(/[\s._-]/)
     .map(p => p[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || "?";
 
-  const handleSaveName = (e: React.FormEvent) => {
+  const handleSaveName = async (e: React.FormEvent) => {
     e.preventDefault();
     setNameError("");
     setNameSuccess("");
-    const res = updateUsername(displayName);
+    if (!displayName.trim()) { setNameError("Display name cannot be empty."); return; }
+    setNameSaving(true);
+    const res = await updateDisplayName(displayName.trim());
+    setNameSaving(false);
     if (!res.ok) { setNameError(res.error ?? "Error"); return; }
     setNameSuccess("Display name updated.");
     setTimeout(() => setNameSuccess(""), 3000);
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwError("");
     setPwSuccess("");
     if (newPw !== confirmPw) { setPwError("Passwords do not match."); return; }
-    const res = changePassword(currentPw, newPw);
+    if (newPw.length < 6) { setPwError("Password must be at least 6 characters."); return; }
+    setPwSaving(true);
+    const res = await changePassword(newPw);
+    setPwSaving(false);
     if (!res.ok) { setPwError(res.error ?? "Error"); return; }
     setPwSuccess("Password changed successfully.");
-    setCurrentPw("");
     setNewPw("");
     setConfirmPw("");
     setTimeout(() => { setPwSuccess(""); setPwOpen(false); }, 3000);
@@ -59,12 +68,11 @@ export default function ProfilePage() {
           {initials}
         </div>
         <div>
-          <p className="text-lg font-semibold">{currentUser.username}</p>
-          <p className="text-sm text-muted-foreground">{currentUser.email}</p>
+          <p className="text-lg font-semibold">{currentDisplayName}</p>
+          <p className="text-sm text-muted-foreground">{email}</p>
         </div>
       </div>
 
-      {/* Account details */}
       <div className="bg-card border border-border rounded-xl divide-y divide-border">
 
         {/* Email (read-only) */}
@@ -74,7 +82,7 @@ export default function ProfilePage() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-muted-foreground mb-0.5">Email</p>
-            <p className="text-sm font-medium truncate">{currentUser.email}</p>
+            <p className="text-sm font-medium truncate">{email}</p>
           </div>
           <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">Read-only</span>
         </div>
@@ -87,11 +95,11 @@ export default function ProfilePage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">Display Name</p>
-              <p className="text-sm font-medium">{currentUser.username}</p>
+              <p className="text-sm font-medium">{currentDisplayName}</p>
             </div>
           </div>
 
-          <form onSubmit={handleSaveName} className="flex gap-3 ml-13">
+          <form onSubmit={handleSaveName} className="flex gap-3">
             <input
               type="text"
               value={displayName}
@@ -101,19 +109,20 @@ export default function ProfilePage() {
             />
             <button
               type="submit"
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+              disabled={nameSaving}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
-              Save
+              {nameSaving ? "Saving…" : "Save"}
             </button>
           </form>
 
           {nameSuccess && (
-            <p className="flex items-center gap-1.5 text-xs text-green-400 mt-2 ml-13">
+            <p className="flex items-center gap-1.5 text-xs text-green-400 mt-2">
               <CheckCircle className="w-3.5 h-3.5" /> {nameSuccess}
             </p>
           )}
           {nameError && (
-            <p className="flex items-center gap-1.5 text-xs text-destructive mt-2 ml-13">
+            <p className="flex items-center gap-1.5 text-xs text-destructive mt-2">
               <AlertCircle className="w-3.5 h-3.5" /> {nameError}
             </p>
           )}
@@ -134,32 +143,18 @@ export default function ProfilePage() {
                 <p className="text-sm font-medium">Change password</p>
               </div>
             </div>
-            {pwOpen
-              ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
-              : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            {pwOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
           </button>
 
           {pwOpen && (
-            <form onSubmit={handleChangePassword} className="mt-5 flex flex-col gap-3 ml-13">
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Current password</label>
-                <input
-                  type="password"
-                  value={currentPw}
-                  onChange={e => setCurrentPw(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  autoComplete="current-password"
-                  className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
-                />
-              </div>
+            <form onSubmit={handleChangePassword} className="mt-5 flex flex-col gap-3">
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">New password</label>
                 <input
                   type="password"
                   value={newPw}
                   onChange={e => setNewPw(e.target.value)}
-                  placeholder="Min. 4 characters"
+                  placeholder="Min. 6 characters"
                   required
                   autoComplete="new-password"
                   className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
@@ -178,22 +173,15 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {pwError && (
-                <p className="flex items-center gap-1.5 text-xs text-destructive">
-                  <AlertCircle className="w-3.5 h-3.5" /> {pwError}
-                </p>
-              )}
-              {pwSuccess && (
-                <p className="flex items-center gap-1.5 text-xs text-green-400">
-                  <CheckCircle className="w-3.5 h-3.5" /> {pwSuccess}
-                </p>
-              )}
+              {pwError && <p className="flex items-center gap-1.5 text-xs text-destructive"><AlertCircle className="w-3.5 h-3.5" /> {pwError}</p>}
+              {pwSuccess && <p className="flex items-center gap-1.5 text-xs text-green-400"><CheckCircle className="w-3.5 h-3.5" /> {pwSuccess}</p>}
 
               <button
                 type="submit"
-                className="self-start px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+                disabled={pwSaving}
+                className="self-start px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
               >
-                Update Password
+                {pwSaving ? "Updating…" : "Update Password"}
               </button>
             </form>
           )}
@@ -201,7 +189,7 @@ export default function ProfilePage() {
       </div>
 
       <p className="text-xs text-muted-foreground/50 text-center mt-6">
-        All data is stored locally on this device only.
+        Account managed securely via Supabase Auth.
       </p>
     </div>
   );
