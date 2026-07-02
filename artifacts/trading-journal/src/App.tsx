@@ -8,7 +8,7 @@ import ProfilePage from "@/pages/ProfilePage";
 import { RulesPanel } from "@/components/RulesPanel";
 import { useRules } from "@/hooks/useRules";
 import { useAuth } from "@/hooks/useAuth";
-import { BookOpen, Activity, List, PlusCircle } from "lucide-react";
+import { BookOpen, Activity, List, PlusCircle, LogOut } from "lucide-react";
 
 function Nav({ onLogout }: { onLogout: () => void }) {
   const [location, setLocation] = useLocation();
@@ -71,6 +71,15 @@ function Nav({ onLogout }: { onLogout: () => void }) {
             }`}
           >
             {initials}
+          </button>
+
+          {/* Logout */}
+          <button
+            onClick={onLogout}
+            title="Log out"
+            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-destructive bg-secondary/50 hover:bg-secondary px-3 py-1.5 rounded-md transition-colors border border-border"
+          >
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
