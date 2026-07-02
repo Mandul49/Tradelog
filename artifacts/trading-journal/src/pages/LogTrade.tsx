@@ -9,6 +9,19 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RefreshCw } from "lucide-react";
 
+// Read a trade directly from localStorage — synchronous, no timing issues
+function loadTradeFromStorage(id: string | undefined): Trade | null {
+  if (!id) return null;
+  try {
+    const raw = localStorage.getItem("trading-journal-trades");
+    if (!raw) return null;
+    const all: Trade[] = JSON.parse(raw);
+    return all.find(t => t.id === id) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Deriv volatility markets ──────────────────────────────────────────────────
 const DERIV_MARKETS: { group: string; items: string[] }[] = [
   {
@@ -69,31 +82,34 @@ const ALL_KNOWN_ASSETS = DERIV_MARKETS.flatMap(g => g.items);
 export default function LogTrade() {
   const params = useParams();
   const [, setLocation] = useLocation();
-  const { trades, addTrade, updateTrade } = useTrades();
+  const { addTrade, updateTrade } = useTrades();
   const { ruleLines, setIsPanelOpen } = useRules();
 
+  // Load synchronously so form is pre-filled on first render — no useEffect race
   const isEdit = !!params.id;
-  const existingTrade = isEdit ? trades.find(t => t.id === params.id) : null;
+  const existingTrade = useState(() => loadTradeFromStorage(params.id))[0];
 
   const [datetime, setDatetime] = useState(() => {
+    if (existingTrade) return existingTrade.datetime.slice(0, 16);
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     return now.toISOString().slice(0, 16);
   });
-  const [asset, setAsset] = useState<string>("Volatility 75 Index");
-  const [customAsset, setCustomAsset] = useState("");
-  const [direction, setDirection] = useState<Trade["direction"]>("buy");
-  const [lotSize, setLotSize] = useState<string>("1");
-  const [originalBalance, setOriginalBalance] = useState<string>("");
-  const [currentBalance, setCurrentBalance] = useState<string>("");
-  const [entryPrice, setEntryPrice] = useState<string>("");
-  const [exitPrice, setExitPrice] = useState<string>("");
-  const [reasoning, setReasoning] = useState("");
-  const [reflection, setReflection] = useState("");
-  const [tags, setTags] = useState("");
-  const [screenshot, setScreenshot] = useState<string | undefined>();
-  const [rulesFollowed, setRulesFollowed] = useState<string[]>([]);
-  const [balanceManual, setBalanceManual] = useState(false);
+  const [asset, setAsset] = useState<string>(() => existingTrade?.asset ?? "Volatility 75 Index");
+  const [customAsset, setCustomAsset] = useState(() => existingTrade?.customAsset ?? "");
+  const [direction, setDirection] = useState<Trade["direction"]>(() => existingTrade?.direction ?? "buy");
+  const [lotSize, setLotSize] = useState<string>(() => existingTrade ? (existingTrade.lotSize ?? 1).toString() : "1");
+  const [originalBalance, setOriginalBalance] = useState<string>(() => existingTrade ? existingTrade.originalBalance.toString() : "");
+  const [currentBalance, setCurrentBalance] = useState<string>(() => existingTrade ? existingTrade.currentBalance.toString() : "");
+  const [entryPrice, setEntryPrice] = useState<string>(() => existingTrade?.entryPrice ? existingTrade.entryPrice.toString() : "");
+  const [exitPrice, setExitPrice] = useState<string>(() => existingTrade?.exitPrice ? existingTrade.exitPrice.toString() : "");
+  const [reasoning, setReasoning] = useState(() => existingTrade?.reasoning ?? "");
+  const [reflection, setReflection] = useState(() => existingTrade?.reflection ?? "");
+  const [tags, setTags] = useState(() => existingTrade ? existingTrade.tags.join(", ") : "");
+  const [screenshot, setScreenshot] = useState<string | undefined>(() => existingTrade?.screenshot);
+  const [rulesFollowed, setRulesFollowed] = useState<string[]>(() => existingTrade?.rulesFollowed ?? []);
+  // Pre-existing trades: keep currentBalance as entered, don't auto-overwrite
+  const [balanceManual, setBalanceManual] = useState(() => !!existingTrade);
 
   // ── Auto-calculate current balance ────────────────────────────────────────
   const computeCurrentBalance = useCallback(
@@ -116,28 +132,6 @@ export default function LogTrade() {
     const result = computeCurrentBalance(originalBalance, entryPrice, exitPrice, lotSize, direction);
     if (result !== null) setCurrentBalance(result);
   }, [originalBalance, entryPrice, exitPrice, lotSize, direction, balanceManual, computeCurrentBalance]);
-
-  // ── Populate form when editing ────────────────────────────────────────────
-  useEffect(() => {
-    if (existingTrade) {
-      setDatetime(existingTrade.datetime.slice(0, 16));
-      setAsset(existingTrade.asset);
-      setCustomAsset(existingTrade.customAsset || "");
-      setDirection(existingTrade.direction);
-      setLotSize(existingTrade.lotSize ? existingTrade.lotSize.toString() : "1");
-      setOriginalBalance(existingTrade.originalBalance.toString());
-      setCurrentBalance(existingTrade.currentBalance.toString());
-      setEntryPrice(existingTrade.entryPrice ? existingTrade.entryPrice.toString() : "");
-      setExitPrice(existingTrade.exitPrice ? existingTrade.exitPrice.toString() : "");
-      setReasoning(existingTrade.reasoning);
-      setReflection(existingTrade.reflection);
-      setTags(existingTrade.tags.join(", "));
-      setScreenshot(existingTrade.screenshot);
-      setRulesFollowed(existingTrade.rulesFollowed || []);
-      // treat loaded trade as manual so we don't clobber saved currentBalance
-      setBalanceManual(true);
-    }
-  }, [existingTrade]);
 
   // ── Derived P&L values for preview ────────────────────────────────────────
   const origNum = parseFloat(originalBalance) || 0;
