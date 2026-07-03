@@ -1,25 +1,30 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useContext, createContext } from "react";
 
 const RULES_STORAGE_KEY = "trading-rules";
-const PANEL_STORAGE_KEY = "rules-panel-open";
 
-export function useRules() {
-  // Synchronous init — consistent with useTrades, no useEffect needed
-  const [rulesText, setRulesText] = useState<string>(
+interface RulesContextValue {
+  rulesText: string;
+  setRulesText: (text: string) => void;
+  ruleLines: string[];
+  isPanelOpen: boolean;
+  setIsPanelOpen: (open: boolean) => void;
+}
+
+export const RulesContext = createContext<RulesContextValue | null>(null);
+
+export function useRulesState(): RulesContextValue {
+  const [rulesText, setRulesTextState] = useState<string>(
     () => localStorage.getItem(RULES_STORAGE_KEY) ?? ""
   );
-  const [isPanelOpen, setIsPanelOpen] = useState<boolean>(
-    () => localStorage.getItem(PANEL_STORAGE_KEY) === "true"
-  );
+  const [isPanelOpen, setIsPanelOpenState] = useState(false);
 
-  const handleSetRulesText = useCallback((text: string) => {
-    setRulesText(text);
+  const setRulesText = useCallback((text: string) => {
+    setRulesTextState(text);
     localStorage.setItem(RULES_STORAGE_KEY, text);
   }, []);
 
-  const handleSetPanelOpen = useCallback((open: boolean) => {
-    setIsPanelOpen(open);
-    localStorage.setItem(PANEL_STORAGE_KEY, open ? "true" : "false");
+  const setIsPanelOpen = useCallback((open: boolean) => {
+    setIsPanelOpenState(open);
   }, []);
 
   const ruleLines = useMemo(
@@ -31,11 +36,11 @@ export function useRules() {
     [rulesText]
   );
 
-  return {
-    rulesText,
-    setRulesText: handleSetRulesText,
-    ruleLines,
-    isPanelOpen,
-    setIsPanelOpen: handleSetPanelOpen,
-  };
+  return { rulesText, setRulesText, ruleLines, isPanelOpen, setIsPanelOpen };
+}
+
+export function useRules(): RulesContextValue {
+  const ctx = useContext(RulesContext);
+  if (!ctx) throw new Error("useRules must be used inside RulesProvider");
+  return ctx;
 }

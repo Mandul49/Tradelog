@@ -7,7 +7,7 @@ import LogTrade from "@/pages/LogTrade";
 import AuthPage from "@/pages/AuthPage";
 import ProfilePage from "@/pages/ProfilePage";
 import { RulesPanel } from "@/components/RulesPanel";
-import { useRules } from "@/hooks/useRules";
+import { useRules, useRulesState, RulesContext } from "@/hooks/useRules";
 import { useAuth } from "@/hooks/useAuth";
 import { BookOpen, Activity, List, PlusCircle, LogOut } from "lucide-react";
 
@@ -86,29 +86,32 @@ function Nav({ user, onLogout }: { user: User; onLogout: () => void }) {
 }
 
 function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const rulesState = useRulesState();
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans">
-      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-        <Nav user={user} onLogout={onLogout} />
-        <main className="max-w-7xl mx-auto px-4 py-8">
-          <Switch>
-            <Route path="/" component={Dashboard} />
-            <Route path="/journal" component={Journal} />
-            <Route path="/log" component={LogTrade} />
-            <Route path="/log/:id" component={LogTrade} />
-            <Route path="/profile">
-              <ProfilePage />
-            </Route>
-            <Route>
-              <div className="flex items-center justify-center h-[50vh]">
-                <h2 className="text-2xl text-muted-foreground">404 - Page Not Found</h2>
-              </div>
-            </Route>
-          </Switch>
-        </main>
-        <RulesPanel />
-      </WouterRouter>
-    </div>
+    <RulesContext.Provider value={rulesState}>
+      <div className="min-h-screen bg-background text-foreground font-sans">
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <Nav user={user} onLogout={onLogout} />
+          <main className="max-w-7xl mx-auto px-4 py-8">
+            <Switch>
+              <Route path="/" component={Dashboard} />
+              <Route path="/journal" component={Journal} />
+              <Route path="/log" component={LogTrade} />
+              <Route path="/log/:id" component={LogTrade} />
+              <Route path="/profile">
+                <ProfilePage />
+              </Route>
+              <Route>
+                <div className="flex items-center justify-center h-[50vh]">
+                  <h2 className="text-2xl text-muted-foreground">404 - Page Not Found</h2>
+                </div>
+              </Route>
+            </Switch>
+          </main>
+          <RulesPanel />
+        </WouterRouter>
+      </div>
+    </RulesContext.Provider>
   );
 }
 
